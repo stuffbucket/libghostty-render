@@ -143,6 +143,32 @@ pub fn build(b: *std.Build) !void {
         });
         test_step.dependOn(&b.addRunArtifact(t).step);
     }
+
+    // A C program links each library through the public headers.
+    for ([_]struct { name: []const u8, render: *std.Build.Step.Compile, vt: *std.Build.Step.Compile, static: bool }{
+        .{ .name = "c_link_test_shared", .render = shared, .vt = vt_shared, .static = false },
+        .{ .name = "c_link_test_static", .render = static, .vt = vt_static, .static = true },
+    }) |case| {
+        const mod = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        mod.addCSourceFile(.{
+            .file = b.path("test/c/link_test.c"),
+            .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Wpedantic", "-Werror" },
+        });
+        if (case.static) {
+            mod.addCMacro("GTR_STATIC", "");
+            mod.addCMacro("GHOSTTY_STATIC", "");
+        }
+        mod.linkLibrary(case.render);
+        mod.linkLibrary(case.vt);
+        const exe = b.addExecutable(.{ .name = case.name, .root_module = mod });
+        const run = b.addRunArtifact(exe);
+        run.expectExitCode(0);
+        test_step.dependOn(&run.step);
+    }
 }
 
 fn createLibModule(
