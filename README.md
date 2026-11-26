@@ -7,6 +7,21 @@ The renderer itself is being designed as a language-neutral C-ABI library,
 with GPUI as one binding on top; see [`docs/DESIGN.md`](docs/DESIGN.md) and
 [`docs/PLAN.md`](docs/PLAN.md). What exists today is its foundation:
 
+- **The core library skeleton** (`build.zig`, `include/gtr/`, `src/`): a Zig
+  library with a C ABI, built against libghostty-vt `vt-1.0.1` as a
+  `build.zig.zon` dependency. It emits `libghostty-render` as a shared and a
+  static library and exports only the version API so far: the
+  `GTR_RENDER_VERSION*` macros in `<gtr/render/version.h>`, `gtr_version()` and
+  `gtr_build_info()`. Shared builds export only `gtr_*` symbols, versioned
+  `GTR_RENDER_0.1` on ELF, and link the shared libghostty-vt. The static
+  library leaves libghostty-vt for the application to link, because the
+  renderer and the application must share one copy of it.
+
+  ```sh
+  mise x zig@0.17.1 -- zig build test   # Zig unit tests, version agreement, C link tests
+  mise x zig@0.17.1 -- zig build        # installs libs and headers into zig-out/
+  ```
+
 - **`libghostty-render-sys`**: builds libghostty-vt `vt-1.0.1` from source
   with Zig, links it statically, and exposes all of `ghostty/vt.h` to Rust
   through bindgen, plus hand-written equivalents of the macros and inline
