@@ -106,6 +106,33 @@ pub fn build(b: *std.Build) !void {
         test_step.dependOn(&b.addRunArtifact(t).step);
     }
 
+    // The C headers and the Zig types describe the same ABI. translate-c
+    // turns the headers into Zig, and src/c/abi_test.zig compares every
+    // type in the registry with its translation.
+    {
+        const headers = b.addTranslateC(.{
+            .root_source_file = b.path("include/gtr/render.h"),
+            .target = target,
+            .optimize = optimize,
+        });
+        headers.addIncludePath(b.path("include"));
+        headers.addIncludePath(ghostty.path("include"));
+
+        const mod = b.createModule(.{
+            .root_source_file = b.path("src/c/abi_test.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        mod.addOptions("build_options", options);
+        mod.addImport("gtr-render-h", headers.createModule());
+        const t = b.addTest(.{
+            .name = "ghostty-render-abi-test",
+            .root_module = mod,
+            .filters = test_filters,
+        });
+        test_step.dependOn(&b.addRunArtifact(t).step);
+    }
+
     // The libghostty-vt library we link reports the release its headers
     // describe.
     {
