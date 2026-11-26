@@ -77,15 +77,23 @@ jobs:
           fi
 
   # Unit tests, the version checks and the C link tests, natively on each
-  # operating system.
+  # operating system. Zig's native ABI on Windows is GNU, so Windows also
+  # runs with MSVC, the ABI most Windows applications use.
   test:
-    name: test (${{ matrix.os }})
+    name: test (${{ matrix.os }}${{ matrix.target && format(', {0}', matrix.target) || '' }})
     needs: skip
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+          - os: macos-latest
+          - os: windows-latest
+          - os: windows-latest
+            target: x86_64-windows-msvc
     runs-on: ${{ matrix.os }}
+    env:
+      TARGET: ${{ matrix.target && format('-Dtarget={0}', matrix.target) || '' }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -95,10 +103,10 @@ jobs:
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
 
       - name: Test
-        run: zig build test --summary all
+        run: zig build test --summary all ${{ env.TARGET }}
 
       - name: Build
-        run: zig build
+        run: zig build ${{ env.TARGET }}
 
   # Builds the libraries for every supported target from Linux.
   build-cross:
@@ -117,7 +125,7 @@ jobs:
           - x86_64-windows-gnu
           - aarch64-windows-gnu
           # libghostty-vt can't cross-compile for MSVC yet. The test job
-          # builds on Windows natively instead.
+          # builds and tests it on Windows instead.
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
