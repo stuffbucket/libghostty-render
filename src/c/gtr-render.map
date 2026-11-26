@@ -1,0 +1,42 @@
+/*
+ * Symbol version script for the libghostty-render shared library on ELF
+ * platforms (Linux and FreeBSD). It works the same way as libghostty-vt's
+ * ghostty-vt.map.
+ *
+ * The script does two things:
+ *
+ * 1. It exports only the public gtr_* functions. Everything else the
+ *    library contains, such as compiler-rt, stays private, so it can't
+ *    clash with another copy in the same program.
+ *
+ * 2. It tags each exported symbol with a version. A program linked
+ *    against the library records that tag for each function it uses, and
+ *    the loader checks it when the program starts.
+ *
+ * The GTR_RENDER_0.1 node exports gtr_*. Each later minor release adds a
+ * node that lists only the functions it added and chains to the previous
+ * node. For example, if 0.2 adds gtr_new_function:
+ *
+ *     GTR_RENDER_0.1 {
+ *         global:
+ *             gtr_*;
+ *         local:
+ *             *;
+ *     };
+ *
+ *     GTR_RENDER_0.2 {
+ *         global:
+ *             gtr_new_function;
+ *     } GTR_RENDER_0.1;
+ *
+ * A program that uses gtr_new_function then needs a 0.2 or newer library,
+ * and the loader says so by name if it gets an older one.
+ *
+ * Releases before 1.0 have no 0.0 node: the first node is GTR_RENDER_0.1.
+ */
+GTR_RENDER_0.1 {
+    global:
+        gtr_*;
+    local:
+        *;
+};

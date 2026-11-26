@@ -58,6 +58,7 @@ The rules that keep the layers separate:
 
 - **The core links only libghostty-vt and z2d.** It contains no toolkit, font, GPU or I/O code.
 - **Bindings depend only on the installed headers and libraries**, never on core internals. Bindings are versioned separately from the core: a binding states which core minor versions it supports.
+- **One copy of libghostty-vt.** The core takes libghostty-vt objects, such as render states, from the application, so both must use the same copy. The shared library links the shared libghostty-vt. The static library doesn't bundle libghostty-vt, so the application links it too.
 - **The core never calls a clock.** Time-dependent state is an input, such as `focused` and `blink_visible`. The same render state and inputs always produce the same frame plan, byte for byte.
 
 ## Naming
@@ -200,7 +201,7 @@ Credits are in `NOTICE` and the README: the herdr team (the technique and the GP
 How this repository is run, following the libghostty-vt team's practice (see `docs/PLAN.md` for the PR series).
 
 - **Commits**
-  - The subject is `area: lowercase summary`, with no trailing period and 72 characters or fewer. Areas: `metrics`, `renderer`, `frame`, `sprite`, `color`, `abi`, `build`, `ci`, `doxygen`, `docs`, `example`, `fuzz`, `bindings/rust`, `treewide`.
+  - The subject is `area: lowercase summary`, with no trailing period and 72 characters or fewer. Areas: `version`, `metrics`, `renderer`, `frame`, `sprite`, `color`, `abi`, `build`, `ci`, `doxygen`, `docs`, `example`, `fuzz`, `bindings/rust`, `treewide`.
   - Commits are small and do one thing, and they stay as written inside the PR.
   - An optional prose body, wrapped at 72 columns, explains the why, the approach and the cost.
 - **PRs**

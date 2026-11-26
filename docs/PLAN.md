@@ -2,7 +2,7 @@
 
 This is the order the work lands in. Each PR is small enough to review in one sitting, compiles, and passes CI on its own. Each one proves one thing, stated in its "Proves" line. The commits inside a PR are listed as their planned subjects. They follow the house style in [DESIGN.md § Process](DESIGN.md#process) and are kept as written, then merged with a merge commit.
 
-PRs are developed on local branches. Nothing is pushed until the owner approves creating `github.com/stuffbucket/libghostty-render`.
+PRs are developed on branches of `github.com/stuffbucket/libghostty-render` and opened for the owner's review.
 
 ## Foundation
 
@@ -11,9 +11,10 @@ Proves: the library builds against the pinned libghostty-vt and its version is c
 
 - `build: add zig build with the ghostty vt-1.0.1 dependency`
 - `build: emit static and shared libraries with a versioned symbol map`
-- `version: add GTR_VERSION macros, gtr_version and gtr_build_info`
+- `version: add GTR_RENDER_VERSION macros, gtr_version and gtr_build_info`
 - `version: test that header, symbol map and build version agree`
-- `docs: add README, NOTICE, LICENSE files and AGENTS.md`
+- `build: link a c program against the shared and static libraries`
+- `docs: add AGENTS.md and describe the core library`
 
 **2. `ci: lint, test and cross-build on GitHub-hosted runners`**
 Proves: every later PR is held to the same gates.
@@ -121,6 +122,7 @@ Proves: arbitrary input cannot break frame invariants or leak memory.
 Proves: downstream projects can consume the library in the standard ways, and releases are reproducible.
 
 - `build: install pkg-config files and the CMake package`
+- `build: option to use a system libghostty-vt instead of installing the dependency's`
 - `ci: build examples with zig and cmake`
 - `ci: tag-driven release with signatures and checksums`
 - `doxygen: rendering guide`

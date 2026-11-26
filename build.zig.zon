@@ -1,0 +1,21 @@
+.{
+    .name = .libghostty_render,
+    .version = "0.1.0-dev",
+    .fingerprint = 0xb087ce8f2db729af,
+    .minimum_zig_version = "0.17.0",
+    .dependencies = .{
+        .ghostty = .{
+            .url = "https://github.com/ghostty-org/ghostty/archive/108cacb17ed8990840cd14abfce43d8ed8503ca1.tar.gz",
+            .hash = "ghostty-1.4.1-dev-5UdBC4lkpgUYGLDYGJQcJoa9zOGZNB3qVMgMoS9CUH5O",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "include",
+        "src",
+        "LICENSE",
+        "NOTICE",
+        "licenses",
+    },
+}
