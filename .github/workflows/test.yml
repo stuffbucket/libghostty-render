@@ -1,0 +1,261 @@
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+  workflow_dispatch: {}
+
+name: Test
+
+# Only the latest commit of a pull request is tested. Every commit on
+# main is.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name != 'main' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Decides which jobs to skip. The lint jobs for a file type only run
+  # when files of that type change. Add a filter here and gate a job on
+  # its output when adding a linter for a new file type.
+  skip:
+    runs-on: ubuntu-latest
+    outputs:
+      actions_pins: ${{ steps.filter.outputs.actions_pins }}
+      nix: ${{ steps.filter.outputs.nix }}
+      shell: ${{ steps.filter.outputs.shell }}
+      zig: ${{ steps.filter.outputs.zig }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          token: ""
+          filters: |
+            actions_pins:
+              - '.github/workflows/**'
+              - '.github/pinact.yml'
+            nix:
+              - 'nix/**'
+              - '*.nix'
+              - 'flake.lock'
+            shell:
+              - '**/*.sh'
+              - '**/*.bash'
+            zig:
+              - '**/*.zig'
+              - 'build.zig*'
+
+  # The only check that branch protection needs to require. It fails if
+  # any job it needs failed or was cancelled. Skipped jobs pass.
+  required:
+    name: "Required Checks: Test"
+    if: always()
+    runs-on: ubuntu-latest
+    needs:
+      - skip
+      - test
+      - build-cross
+      - build-wasm
+      - rust
+      - zig-fmt
+      - prettier
+      - alejandra
+      - typos
+      - shellcheck
+      - pinact
+    steps:
+      - name: Check results
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if grep -q -E '"(failure|cancelled)"' <<< "$RESULTS"; then
+            echo "One or more required jobs failed."
+            exit 1
+          fi
+
+  # Unit tests, the version checks and the C link tests, natively on each
+  # operating system. Zig's native ABI on Windows is GNU, so Windows also
+  # runs with MSVC, the ABI most Windows applications use.
+  test:
+    name: test (${{ matrix.os }}${{ matrix.target && format(', {0}', matrix.target) || '' }})
+    needs: skip
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: macos-latest
+          - os: windows-latest
+          - os: windows-latest
+            target: x86_64-windows-msvc
+    runs-on: ${{ matrix.os }}
+    env:
+      TARGET: ${{ matrix.target && format('-Dtarget={0}', matrix.target) || '' }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Installs the minimum_zig_version from build.zig.zon, the same Zig
+      # as the Nix shell, and caches Zig's global cache between runs.
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+
+      - name: Test
+        run: zig build test --summary all ${{ env.TARGET }}
+
+      - name: Build
+        run: zig build ${{ env.TARGET }}
+
+  # Builds the libraries for every supported target from Linux.
+  build-cross:
+    needs: skip
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-macos
+          - x86_64-macos
+          - aarch64-linux
+          - x86_64-linux
+          - x86_64-linux-musl
+          - aarch64-freebsd
+          - x86_64-freebsd
+          - x86_64-windows-gnu
+          - aarch64-windows-gnu
+          # libghostty-vt can't cross-compile for MSVC yet. The test job
+          # builds and tests it on Windows instead.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+      - name: Build
+        run: zig build -Dtarget=${{ matrix.target }}
+
+  # Builds the WebAssembly module and loads it in Node.
+  build-wasm:
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+      - name: Build
+        run: zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
+      - name: Smoke test
+        run: node test/wasm/smoke.mjs zig-out/bin/ghostty-render.wasm
+
+  # The Rust binding, which still builds libghostty-vt from the
+  # vendor/ghostty submodule.
+  rust:
+    name: rust (${{ matrix.os }})
+    needs: skip
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+
+      # rustup reads rust-toolchain.toml (Rust 1.99.0 with clippy).
+      - name: Show toolchain
+        run: |
+          rustup show active-toolchain
+          zig version
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Build
+        run: cargo build --workspace --all-targets --locked
+
+      - name: Test
+        run: cargo test --workspace --locked
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  # The linters run from the Nix shell, so their versions are the ones
+  # flake.lock pins.
+  zig-fmt:
+    if: needs.skip.outputs.zig == 'true'
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: zig fmt
+        run: nix develop -c zig fmt --check .
+
+  prettier:
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: prettier check
+        run: nix develop -c prettier --check .
+
+  alejandra:
+    if: needs.skip.outputs.nix == 'true'
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: alejandra check
+        run: nix develop -c alejandra --check .
+
+  typos:
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: typos check
+        run: nix develop -c typos
+
+  shellcheck:
+    if: needs.skip.outputs.shell == 'true'
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: shellcheck
+        run: |
+          find . \( -name "*.sh" -o -name "*.bash" \) -type f \
+            ! -path "./.git/*" ! -path "./vendor/*" ! -path "./zig-pkg/*" \
+            ! -path "./zig-out/*" ! -path "./target/*" -print0 |
+            sort -z |
+            xargs -0 -r nix develop -c shellcheck \
+              --check-sourced \
+              --color=always \
+              --severity=warning
+
+  pinact:
+    name: "GitHub Actions Pins"
+    if: needs.skip.outputs.actions_pins == 'true'
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: pinact check
+        run: nix develop -c pinact run --check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

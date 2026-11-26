@@ -28,15 +28,15 @@ Font loading and fallback, text shaping, glyph rasterisation and atlases, blendi
 
 The logic is ported from Ghostty's own renderer, which is MIT-licensed:
 
-| Ghostty source | Ported into |
-|---|---|
-| `src/renderer/generic.zig` (`rebuildCells` / `rebuildRow`) | frame building |
-| `src/renderer/{cell,row,cursor,image}.zig` | frame building |
-| `src/terminal/style.zig` (colour resolution) | frame building |
-| `src/font/shaper/run.zig` | run splitting |
-| `src/font/Metrics.zig` | metrics |
-| `src/font/sprite/` (on z2d) | sprites |
-| `shaders.metal` (the minimum-contrast function) | colour resolution |
+| Ghostty source                                             | Ported into       |
+| ---------------------------------------------------------- | ----------------- |
+| `src/renderer/generic.zig` (`rebuildCells` / `rebuildRow`) | frame building    |
+| `src/renderer/{cell,row,cursor,image}.zig`                 | frame building    |
+| `src/terminal/style.zig` (colour resolution)               | frame building    |
+| `src/font/shaper/run.zig`                                  | run splitting     |
+| `src/font/Metrics.zig`                                     | metrics           |
+| `src/font/sprite/` (on z2d)                                | sprites           |
+| `shaders.metal` (the minimum-contrast function)            | colour resolution |
 
 The ports are rewritten against libghostty-vt's **public** C API, not Ghostty's internal types.
 
@@ -69,20 +69,20 @@ No libghostty renderer branch, PR or issue exists to copy (checked 2026-11-24). 
 
 libghostty-vt's scheme puts the library name only in headers, version macros, symbol-map nodes and tags, never in function names. libghostty-vt exports `ghostty_terminal_new`, not `ghostty_vt_terminal_new`. Any `ghostty_<area>_*` name we picked could therefore collide with a future official library. `ghostty.h` already uses `ghostty_surface_*` and `ghostty_app_*`.
 
-| | libghostty-vt | libghostty-render |
-|---|---|---|
-| Library | `libghostty-vt` | `libghostty-render` (`ghostty-render.dll`) |
-| Umbrella header | `<ghostty/vt.h>` | `<gtr/render.h>` |
-| Area headers | `<ghostty/vt/<area>.h>` | `<gtr/render/<area>.h>` |
-| Include guards | `GHOSTTY_VT_<AREA>_H` | `GTR_RENDER_<AREA>_H` |
-| Functions | `ghostty_<area>_<verb>` | `gtr_<area>_<verb>` |
-| Types | `Ghostty<Type>` | `Gtr<Type>` |
-| Constants | `GHOSTTY_<AREA>_<NAME>` | `GTR_<AREA>_<NAME>` |
-| Visibility and deprecation | `GHOSTTY_API`, `GHOSTTY_STATIC`, `GHOSTTY_DEPRECATED` | `GTR_API`, `GTR_STATIC`, `GTR_DEPRECATED` |
-| Version macros | `GHOSTTY_VT_VERSION*` | `GTR_RENDER_VERSION*` |
-| Symbol-map node | `GHOSTTY_VT_1.0` | `GTR_RENDER_0.1` |
-| Tags | `vt-X.Y.Z` | `render-X.Y.Z` |
-| pkg-config / CMake | `libghostty-vt` / `ghostty-vt` | `libghostty-render` / `ghostty-render` |
+|                            | libghostty-vt                                         | libghostty-render                          |
+| -------------------------- | ----------------------------------------------------- | ------------------------------------------ |
+| Library                    | `libghostty-vt`                                       | `libghostty-render` (`ghostty-render.dll`) |
+| Umbrella header            | `<ghostty/vt.h>`                                      | `<gtr/render.h>`                           |
+| Area headers               | `<ghostty/vt/<area>.h>`                               | `<gtr/render/<area>.h>`                    |
+| Include guards             | `GHOSTTY_VT_<AREA>_H`                                 | `GTR_RENDER_<AREA>_H`                      |
+| Functions                  | `ghostty_<area>_<verb>`                               | `gtr_<area>_<verb>`                        |
+| Types                      | `Ghostty<Type>`                                       | `Gtr<Type>`                                |
+| Constants                  | `GHOSTTY_<AREA>_<NAME>`                               | `GTR_<AREA>_<NAME>`                        |
+| Visibility and deprecation | `GHOSTTY_API`, `GHOSTTY_STATIC`, `GHOSTTY_DEPRECATED` | `GTR_API`, `GTR_STATIC`, `GTR_DEPRECATED`  |
+| Version macros             | `GHOSTTY_VT_VERSION*`                                 | `GTR_RENDER_VERSION*`                      |
+| Symbol-map node            | `GHOSTTY_VT_1.0`                                      | `GTR_RENDER_0.1`                           |
+| Tags                       | `vt-X.Y.Z`                                            | `render-X.Y.Z`                             |
+| pkg-config / CMake         | `libghostty-vt` / `ghostty-vt`                        | `libghostty-render` / `ghostty-render`     |
 
 Shared types (`GhosttyResult`, `GhosttyAllocator`, `GhosttyString` and so on) keep their `Ghostty` names, because we include libghostty-vt's own headers rather than redefining them.
 
@@ -109,14 +109,14 @@ The same rules apply:
 
 ### Areas (first release)
 
-| Area | Objects and calls | Ported from |
-|---|---|---|
-| `version` | `GTR_VERSION_*` macros, `gtr_version()`, `gtr_build_info()` | libghostty-vt pattern |
-| `metrics` | `GtrFaceMetrics` (sized, input), `GtrMetrics` (sized, output), `gtr_metrics_calc`, modifier parse/apply | `font/Metrics.zig` |
-| `renderer` | `GtrRenderer` new/free/set/get. Options are named after Ghostty config keys: `minimum-contrast`, `bold-color`, `faint-opacity`, `cursor-color`, `cursor-text`, `cursor-opacity`, `selection-foreground/background`, `search-*`, `background-opacity`, `background-opacity-cells`, `window-padding-color`, `font-shaping-break`. Defaults match Ghostty's. Plus a glyph-coverage callback for font-fallback run breaks | `config/Config.zig` defaults; `terminal/style.zig` |
-| `frame` | `gtr_frame_build(renderer, GhosttyRenderState, const GtrFrameInputs*, GtrFrame)` | `renderer/generic.zig`, `cell.zig`, `row.zig`, `cursor.zig`, `image.zig`, `font/shaper/run.zig` |
-| `sprite` | `gtr_sprite_has(cp)`, `gtr_sprite_render(cp_or_special, const GtrMetrics*, span, GhosttyBuffer*, GtrSpriteInfo*)` → A8 mask with bearings. Covers the decoration and cursor sprites too, so every pixel matches Ghostty | `font/sprite/` |
-| `color` | `gtr_color_contrast(fg, bg, ratio)` (WCAG, linear) | `shaders.metal` `contrasted_color` |
+| Area       | Objects and calls                                                                                                                                                                                                                                                                                                                                                                                                     | Ported from                                                                                     |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `version`  | `GTR_VERSION_*` macros, `gtr_version()`, `gtr_build_info()`                                                                                                                                                                                                                                                                                                                                                           | libghostty-vt pattern                                                                           |
+| `metrics`  | `GtrFaceMetrics` (sized, input), `GtrMetrics` (sized, output), `gtr_metrics_calc`, modifier parse/apply                                                                                                                                                                                                                                                                                                               | `font/Metrics.zig`                                                                              |
+| `renderer` | `GtrRenderer` new/free/set/get. Options are named after Ghostty config keys: `minimum-contrast`, `bold-color`, `faint-opacity`, `cursor-color`, `cursor-text`, `cursor-opacity`, `selection-foreground/background`, `search-*`, `background-opacity`, `background-opacity-cells`, `window-padding-color`, `font-shaping-break`. Defaults match Ghostty's. Plus a glyph-coverage callback for font-fallback run breaks | `config/Config.zig` defaults; `terminal/style.zig`                                              |
+| `frame`    | `gtr_frame_build(renderer, GhosttyRenderState, const GtrFrameInputs*, GtrFrame)`                                                                                                                                                                                                                                                                                                                                      | `renderer/generic.zig`, `cell.zig`, `row.zig`, `cursor.zig`, `image.zig`, `font/shaper/run.zig` |
+| `sprite`   | `gtr_sprite_has(cp)`, `gtr_sprite_render(cp_or_special, const GtrMetrics*, span, GhosttyBuffer*, GtrSpriteInfo*)` → A8 mask with bearings. Covers the decoration and cursor sprites too, so every pixel matches Ghostty                                                                                                                                                                                               | `font/sprite/`                                                                                  |
+| `color`    | `gtr_color_contrast(fg, bg, ratio)` (WCAG, linear)                                                                                                                                                                                                                                                                                                                                                                    | `shaders.metal` `contrasted_color`                                                              |
 
 `gtr_frame_build` takes per-frame inputs (focus, blink phase, preedit range, search and link highlights) and returns iterators for:
 
@@ -143,7 +143,7 @@ We use the compiler and the toolchain the way libghostty-vt does, and add golden
    - A versioned ELF symbol map (`gtr.map`, one node per minor release), SONAME `libghostty-render.so.<major>`, and the macOS compatibility version.
 3. **Headers are clean in every language mode.** They compile under C11, C23 and C++17 with `-Wall -Wextra -Wpedantic -Werror`. A version test ties the version header, the symbol map and the build constant together.
 4. **It matches Ghostty.**
-   - Ghostty's own tests are ported with their code: `Metrics.zig` tests, and the pixel-exact sprite reference PNGs in `font/sprite/testdata`.
+   - Ghostty's own tests are ported with their code: `Metrics.zig` tests, and the pixel-exact sprite reference PNG files in `font/sprite/testdata`.
    - Frame plans are checked against goldens produced by feeding recorded byte streams through libghostty-vt `vt-1.0.1`.
    - Colours and runs are checked against Ghostty's rules cell by cell, including the cases herdr's renderer gets wrong: bold colour, `isCovering`, invisible decorations, selection swap, and faint at 0.5.
 5. **It holds up under arbitrary input.**
@@ -185,12 +185,12 @@ We plan for this from the start:
 
 Decided 2026-11-24.
 
-| Part | Source | Licence |
-|---|---|---|
-| Core (Zig): root `LICENSE` | Ported from Ghostty (MIT) | **MIT**, the same as libghostty-vt |
-| z2d (dependency, unmodified) | [z2d 0.13.2](https://github.com/vancluever/z2d), as pinned by Ghostty | MPL-2.0 (file-level). We link it unmodified, ship its notice and source location, and never patch it in-tree |
-| Rust/GPUI binding: `bindings/rust/LICENSE` | Derived from herdr-app (Apache-2.0); links GPUI (Apache-2.0, Zed Industries) | **Apache-2.0**. Files derived from herdr carry a notice of what changed (§4(b)) |
-| Bundled into libghostty-vt | Listed in `licenses/README.md` | Their own; texts in `licenses/` |
+| Part                                       | Source                                                                       | Licence                                                                                                      |
+| ------------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Core (Zig): root `LICENSE`                 | Ported from Ghostty (MIT)                                                    | **MIT**, the same as libghostty-vt                                                                           |
+| z2d (dependency, unmodified)               | [z2d 0.13.2](https://github.com/vancluever/z2d), as pinned by Ghostty        | MPL-2.0 (file-level). We link it unmodified, ship its notice and source location, and never patch it in-tree |
+| Rust/GPUI binding: `bindings/rust/LICENSE` | Derived from herdr-app (Apache-2.0); links GPUI (Apache-2.0, Zed Industries) | **Apache-2.0**. Files derived from herdr carry a notice of what changed (§4(b))                              |
+| Bundled into libghostty-vt                 | Listed in `licenses/README.md`                                               | Their own; texts in `licenses/`                                                                              |
 
 The libraries bundled into libghostty-vt `vt-1.0.1` on every target are highway, simdutf, wuffs, uucode, translate-c helpers and Zig's `compiler_rt`/std. `licenses/README.md` records the evidence.
 
@@ -229,8 +229,9 @@ How this repository is run, following the libghostty-vt team's practice (see `do
   - a fuzz harness compile check;
   - `distcheck`;
   - Rust binding build and test on all three operating systems.
-  
+
   A single aggregated `required` job gates merges.
+
 - **Releases** come from a `render-X.Y.Z` tag, which must match `build.zig`. Each release produces source and dependency tarballs, minisign signatures, SHA256SUMS and docs.
 - **Package registries:** nothing is published to crates.io or any other registry until the owner decides to. Rust crates carry their package metadata but inherit `publish = false` from the workspace, so `cargo publish` refuses. No CI job publishes.
 - **Local development** uses `mise` for Zig 0.17.x and Rust. Nix is optional locally and required in CI so linter versions match.

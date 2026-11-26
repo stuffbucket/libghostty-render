@@ -1,0 +1,10 @@
+# Docs: https://prettier.io/docs/en/ignore.html
+flake.lock
+vendor/
+zig-pkg/
+zig-out/
+.zig-cache/
+target/
+
+# Licence texts are kept exactly as upstream wrote them.
+licenses/

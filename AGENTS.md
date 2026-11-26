@@ -15,6 +15,12 @@ them through mise:
 - **Test filter:** `mise x zig@0.17.1 -- zig build test -Dtest-filter=<test name>`
 - **Formatting (Zig):** `mise x zig@0.17.1 -- zig fmt .`
 - **Rust:** `mise x rust@1.99.0 zig@0.17.1 -- cargo test --workspace`
+- **WebAssembly:** `zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall`,
+  then `node test/wasm/smoke.mjs zig-out/bin/ghostty-render.wasm`
+- **Linters:** CI runs `zig fmt --check .`, `prettier --check .`,
+  `alejandra --check .`, `typos`, `shellcheck` and `pinact run --check`
+  from `nix develop`, at the versions `flake.lock` pins. Without Nix,
+  `npx prettier@3.9.6 --check .` and `uvx typos@1.50.2` match them.
 
 The first build fetches Ghostty and its dependencies into `zig-pkg/`, and
 building libghostty-vt takes a few minutes.
@@ -24,8 +30,10 @@ building libghostty-vt takes a few minutes.
 - C headers: `include/gtr/render.h` and `include/gtr/render/<area>.h`
 - Zig core: `src/`, with the C API in `src/c/`
 - Library root and export list: `src/lib_render.zig`
+- WebAssembly root: `src/lib_render_wasm.zig`
 - ELF symbol versions: `src/c/gtr-render.map`
-- C tests: `test/c/`
+- C tests: `test/c/`; wasm smoke test: `test/wasm/`
+- CI: `.github/workflows/test.yml`; Nix shell: `flake.nix`, `nix/`
 - Rust binding: `crates/` (moves to `bindings/rust/`)
 
 ## C API
@@ -62,6 +70,13 @@ disagree. A minor release adds a node to the map for the functions it adds.
 - `zig fmt`. No per-file licence headers in the Zig core, as in Ghostty.
 - Files derived from herdr-app (Rust only) carry the Apache-2.0 §4(b)
   notice of what changed.
+
+## CI
+
+Every job feeds the `Required Checks: Test` job, the only check a branch
+needs to require. When adding a job, add it to that job's `needs`. Pin
+every action by commit SHA with its version in a comment; `pinact` fails
+otherwise.
 
 ## Commits and PRs
 

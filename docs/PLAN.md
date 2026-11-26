@@ -22,8 +22,12 @@ Proves: every later PR is held to the same gates.
 - `build: add nix flake pinned to libghostty-vt's nixpkgs and zig`
 - `ci: add zig fmt, prettier, alejandra, typos, shellcheck and pinact`
 - `ci: run zig build test on macos, linux and windows`
+- `build: rerun configure so the version follows git`
+- `build: emit one wasm module with libghostty-vt for wasm32`
 - `ci: cross-build the target matrix including wasm32`
 - `ci: add the aggregated required job`
+- `ci: test the msvc abi natively on windows`
+- `docs: describe the linters, the wasm build and ci`
 
 **3. `abi: header and Zig parity, symbol goldens and header compile matrix`**
 Proves: the C headers cannot drift from the implementation.
