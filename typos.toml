@@ -1,0 +1,24 @@
+[files]
+extend-exclude = [
+  # Build
+  "build.zig.zon",
+  "flake.lock",
+  "Cargo.lock",
+  # Build artifacts
+  "zig-out/*",
+  "zig-pkg/*",
+  "target/*",
+  # Vendored code and upstream licence texts
+  "vendor/*",
+  "licenses/*",
+  # Do not self-check
+  "typos.toml",
+]
+
+[default]
+extend-ignore-re = [
+  # Ignore long hex-like IDs and hashes
+  "[0-9A-Fa-f]{12,}",
+  # Ignore base64-encoded strings
+  "[A-Za-z0-9+/]{8,}={0,2}",
+]

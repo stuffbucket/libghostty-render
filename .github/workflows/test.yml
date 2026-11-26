@@ -1,0 +1,125 @@
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+  workflow_dispatch: {}
+
+name: Test
+
+# Only the latest commit of a pull request is tested. Every commit on
+# main is.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name != 'main' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Decides which jobs to skip. The lint jobs for a file type only run
+  # when files of that type change. Add a filter here and gate a job on
+  # its output when adding a linter for a new file type.
+  skip:
+    runs-on: ubuntu-latest
+    outputs:
+      actions_pins: ${{ steps.filter.outputs.actions_pins }}
+      nix: ${{ steps.filter.outputs.nix }}
+      shell: ${{ steps.filter.outputs.shell }}
+      zig: ${{ steps.filter.outputs.zig }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          token: ""
+          filters: |
+            actions_pins:
+              - '.github/workflows/**'
+              - '.github/pinact.yml'
+            nix:
+              - 'nix/**'
+              - '*.nix'
+              - 'flake.lock'
+            shell:
+              - '**/*.sh'
+              - '**/*.bash'
+            zig:
+              - '**/*.zig'
+              - 'build.zig*'
+
+  # The linters run from the Nix shell, so their versions are the ones
+  # flake.lock pins.
+  zig-fmt:
+    if: needs.skip.outputs.zig == 'true'
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: zig fmt
+        run: nix develop -c zig fmt --check .
+
+  prettier:
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: prettier check
+        run: nix develop -c prettier --check .
+
+  alejandra:
+    if: needs.skip.outputs.nix == 'true'
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: alejandra check
+        run: nix develop -c alejandra --check .
+
+  typos:
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: typos check
+        run: nix develop -c typos
+
+  shellcheck:
+    if: needs.skip.outputs.shell == 'true'
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: shellcheck
+        run: |
+          find . \( -name "*.sh" -o -name "*.bash" \) -type f \
+            ! -path "./.git/*" ! -path "./vendor/*" ! -path "./zig-pkg/*" \
+            ! -path "./zig-out/*" ! -path "./target/*" -print0 |
+            sort -z |
+            xargs -0 -r nix develop -c shellcheck \
+              --check-sourced \
+              --color=always \
+              --severity=warning
+
+  pinact:
+    name: "GitHub Actions Pins"
+    if: needs.skip.outputs.actions_pins == 'true'
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: pinact check
+        run: nix develop -c pinact run --check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
