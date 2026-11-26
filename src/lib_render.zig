@@ -11,6 +11,7 @@ pub const c = @import("c/main.zig");
 comptime {
     @export(&c.build_info, .{ .name = "gtr_build_info" });
     @export(&c.version, .{ .name = "gtr_version" });
+    @export(&c.type_json, .{ .name = "gtr_type_json" });
 }
 
 test {

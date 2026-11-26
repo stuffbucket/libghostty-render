@@ -7,6 +7,7 @@ pub const types = @import("types.zig");
 
 pub const build_info = build_info_c.get;
 pub const version = build_info_c.version;
+pub const type_json = types.get_json;
 
 test {
     _ = build_info_c;
