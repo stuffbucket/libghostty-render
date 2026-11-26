@@ -74,6 +74,14 @@ pub fn build(b: *std.Build) !void {
         options.addOption(usize, "vt_version_patch", vt_version.patch);
     }
 
+    const test_step = b.step("test", "Run all tests");
+    addVersionTest(b, test_step, lib_version, test_filters);
+
+    if (target.result.cpu.arch.isWasm()) {
+        addWasm(b, ghostty, target, optimize, options);
+        return;
+    }
+
     const vt_shared = ghostty.artifact("ghostty-vt");
     const vt_static = ghostty.artifact("ghostty-vt-static");
 
@@ -87,39 +95,11 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(vt_shared);
     b.installArtifact(vt_static);
 
-    // Tests
-    const test_step = b.step("test", "Run all tests");
-
     // Unit tests of the library code.
     {
         const mod = createLibModule(b, target, optimize, options);
         const t = b.addTest(.{
             .name = "ghostty-render-test",
-            .root_module = mod,
-            .filters = test_filters,
-        });
-        test_step.dependOn(&b.addRunArtifact(t).step);
-    }
-
-    // The committed version.h and the symbol version nodes in
-    // gtr-render.map must match the library version, so a version bump has
-    // to update them together. The test embeds these files, so they are
-    // copied into one directory.
-    {
-        const wf = b.addWriteFiles();
-        const root = wf.addCopyFile(b.path("src/version_test.zig"), "version_test.zig");
-        _ = wf.addCopyFile(b.path("include/gtr/render/version.h"), "version.h");
-        _ = wf.addCopyFile(b.path("src/c/gtr-render.map"), "gtr-render.map");
-        const opts = b.addOptions();
-        opts.addOption(std.SemanticVersion, "lib_version", lib_version);
-        const mod = b.createModule(.{
-            .root_source_file = root,
-            .target = b.graph.host,
-            .optimize = .Debug,
-        });
-        mod.addOptions("lib_version", opts);
-        const t = b.addTest(.{
-            .name = "ghostty-render-version-test",
             .root_module = mod,
             .filters = test_filters,
         });
@@ -169,6 +149,97 @@ pub fn build(b: *std.Build) !void {
         run.expectExitCode(0);
         test_step.dependOn(&run.step);
     }
+}
+
+/// The committed version.h and the symbol version nodes in gtr-render.map
+/// must match the library version, so a version bump has to update them
+/// together. The test embeds these files, so they are copied into one
+/// directory. It runs on the host, whatever the target.
+fn addVersionTest(
+    b: *std.Build,
+    test_step: *std.Build.Step,
+    lib_version: std.SemanticVersion,
+    test_filters: []const []const u8,
+) void {
+    const wf = b.addWriteFiles();
+    const root = wf.addCopyFile(b.path("src/version_test.zig"), "version_test.zig");
+    _ = wf.addCopyFile(b.path("include/gtr/render/version.h"), "version.h");
+    _ = wf.addCopyFile(b.path("src/c/gtr-render.map"), "gtr-render.map");
+    const opts = b.addOptions();
+    opts.addOption(std.SemanticVersion, "lib_version", lib_version);
+    const mod = b.createModule(.{
+        .root_source_file = root,
+        .target = b.graph.host,
+        .optimize = .Debug,
+    });
+    mod.addOptions("lib_version", opts);
+    const t = b.addTest(.{
+        .name = "ghostty-render-version-test",
+        .root_module = mod,
+        .filters = test_filters,
+    });
+    test_step.dependOn(&b.addRunArtifact(t).step);
+}
+
+/// Builds the WebAssembly module, which contains libghostty-vt's C ABI and
+/// libghostty-render's. See src/lib_render_wasm.zig. The settings follow
+/// libghostty-vt's own wasm build.
+fn addWasm(
+    b: *std.Build,
+    ghostty: *std.Build.Dependency,
+    target: std.Build.ResolvedTarget,
+    optimize: std.lang.OptimizeMode,
+    options: *std.Build.Step.Options,
+) void {
+    const mod = b.createModule(.{
+        .root_source_file = b.path("src/lib_render_wasm.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    mod.addOptions("build_options", options);
+    mod.addImport("ghostty-vt-c", ghostty.module("ghostty-vt-c"));
+
+    // libghostty-vt only exports its C API when its C ABI module is the
+    // root of the compilation, so it is compiled as its own object and
+    // linked into the module.
+    const vt = b.addObject(.{
+        .name = "ghostty-vt",
+        .root_module = ghostty.module("ghostty-vt-c"),
+    });
+    mod.addObject(vt);
+
+    const exe = b.addExecutable(.{
+        .name = "ghostty-render",
+        .root_module = mod,
+    });
+
+    // Export the gtr_* and ghostty_* functions, and the function table so
+    // that embedders can add callbacks. There is no entry point.
+    exe.rdynamic = true;
+    exe.export_table = true;
+    exe.entry = .disabled;
+
+    // The stack is preallocated in linear memory, so keep it at the
+    // 128 KB libghostty-vt uses rather than Zig's 1 MB default.
+    exe.stack_size = 128 * 1024;
+
+    // Zig's wasm linker can't emit a growable table, so patch the binary
+    // with libghostty-vt's own tool, built for the host.
+    const patcher = b.addExecutable(.{
+        .name = "wasm_patch_growable_table",
+        .root_module = b.createModule(.{
+            .root_source_file = ghostty.path("src/build/wasm_patch_growable_table.zig"),
+            .target = b.graph.host,
+        }),
+    });
+    const patch = b.addRunArtifact(patcher);
+    patch.addFileArg(exe.getEmittedBin());
+    const output = patch.addOutputFileArg("ghostty-render.wasm");
+    b.getInstallStep().dependOn(&b.addInstallFileWithDir(
+        output,
+        .bin,
+        "ghostty-render.wasm",
+    ).step);
 }
 
 fn createLibModule(
