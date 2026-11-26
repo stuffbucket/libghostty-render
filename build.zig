@@ -100,6 +100,49 @@ pub fn build(b: *std.Build) !void {
         });
         test_step.dependOn(&b.addRunArtifact(t).step);
     }
+
+    // The committed version.h and the symbol version nodes in
+    // gtr-render.map must match the library version, so a version bump has
+    // to update them together. The test embeds these files, so they are
+    // copied into one directory.
+    {
+        const wf = b.addWriteFiles();
+        const root = wf.addCopyFile(b.path("src/version_test.zig"), "version_test.zig");
+        _ = wf.addCopyFile(b.path("include/gtr/render/version.h"), "version.h");
+        _ = wf.addCopyFile(b.path("src/c/gtr-render.map"), "gtr-render.map");
+        const opts = b.addOptions();
+        opts.addOption(std.SemanticVersion, "lib_version", lib_version);
+        const mod = b.createModule(.{
+            .root_source_file = root,
+            .target = b.graph.host,
+            .optimize = .Debug,
+        });
+        mod.addOptions("lib_version", opts);
+        const t = b.addTest(.{
+            .name = "ghostty-render-version-test",
+            .root_module = mod,
+            .filters = test_filters,
+        });
+        test_step.dependOn(&b.addRunArtifact(t).step);
+    }
+
+    // The libghostty-vt library we link reports the release its headers
+    // describe.
+    {
+        const mod = b.createModule(.{
+            .root_source_file = b.path("src/vt_test.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        mod.addOptions("build_options", options);
+        mod.linkLibrary(vt_static);
+        const t = b.addTest(.{
+            .name = "ghostty-render-vt-test",
+            .root_module = mod,
+            .filters = test_filters,
+        });
+        test_step.dependOn(&b.addRunArtifact(t).step);
+    }
 }
 
 fn createLibModule(
