@@ -268,6 +268,11 @@ fn libVersion(b: *std.Build, is_dep: bool) !std.SemanticVersion {
     const version = try std.SemanticVersion.parse(zon_version);
     if (is_dep) return version;
 
+    // Zig caches the configure phase, and it can't see that the result
+    // depends on git, so a new commit or tag would keep the old version.
+    // Rerunning configure on every build costs a fraction of a second.
+    b.graph.poisonCache();
+
     var code: u8 = 0;
     const short_hash = hash: {
         const output = b.runAllowFail(
