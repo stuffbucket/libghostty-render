@@ -77,6 +77,43 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run all tests");
     addVersionTest(b, test_step, lib_version, test_filters);
 
+    // The public headers must compile without warnings in every language
+    // standard we support, so compile a file that includes render.h once
+    // per standard with strict warnings as errors. This runs on the host
+    // whatever the target, like libghostty-vt's own header check.
+    {
+        const wf = b.addWriteFiles();
+        const c_src = wf.add("render_h_test.c", "#include <gtr/render.h>\n");
+        const cpp_src = wf.add("render_h_test.cpp", "#include <gtr/render.h>\n");
+        const Case = struct { std: []const u8, src: std.Build.LazyPath };
+        for ([_]Case{
+            .{ .std = "c11", .src = c_src },
+            .{ .std = "c23", .src = c_src },
+            .{ .std = "c++17", .src = cpp_src },
+        }) |case| {
+            const mod = b.createModule(.{
+                .target = b.graph.host,
+                .optimize = .Debug,
+                .link_libc = true,
+                .link_libcpp = std.mem.startsWith(u8, case.std, "c++"),
+            });
+            mod.addIncludePath(b.path("include"));
+            mod.addIncludePath(ghostty.path("include"));
+            mod.addCSourceFile(.{ .file = case.src, .flags = &.{
+                b.fmt("-std={s}", .{case.std}),
+                "-Wall",
+                "-Wextra",
+                "-Wpedantic",
+                "-Werror",
+            } });
+            const obj = b.addObject(.{
+                .name = b.fmt("render-h-{s}", .{case.std}),
+                .root_module = mod,
+            });
+            test_step.dependOn(&obj.step);
+        }
+    }
+
     const test_abi_step = b.step("test-abi", "Check the ABI against the goldens in src/c/abi");
     const update_abi_step = b.step("update-abi", "Write the ABI goldens in src/c/abi for this target");
     const abi_check = addAbiCheckTool(b, test_step);
