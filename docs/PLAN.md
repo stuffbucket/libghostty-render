@@ -33,10 +33,12 @@ Proves: every later PR is held to the same gates.
 Proves: the C headers cannot drift from the implementation.
 
 - `abi: register public types and check them against translate-c`
-- `abi: check exported symbols against headers and the export list`
-- `abi: add per-target type manifest goldens`
+- `abi: export the type manifest as gtr_type_json`
+- `abi: check manifest goldens and exported symbols`
 - `abi: compile headers as c11, c23 and c++17 with -Werror`
-- `ci: add libabigail baseline diff`
+- `ci: check the abi goldens and add the libabigail baseline diff`
+- `abi: record the libabigail baseline`
+- `docs: describe the abi checks`
 
 **4. `doxygen: docs build with groups, conventions and zero warnings`**
 Proves: the docs build is warning-free from day one, and later PRs add docs as they go.
