@@ -71,6 +71,45 @@ jobs:
       - name: Build
         run: zig build
 
+  # Builds the libraries for every supported target from Linux.
+  build-cross:
+    needs: skip
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-macos
+          - x86_64-macos
+          - aarch64-linux
+          - x86_64-linux
+          - x86_64-linux-musl
+          - aarch64-freebsd
+          - x86_64-freebsd
+          - x86_64-windows-gnu
+          - aarch64-windows-gnu
+          # libghostty-vt can't cross-compile for MSVC yet. The test job
+          # builds on Windows natively instead.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+      - name: Build
+        run: zig build -Dtarget=${{ matrix.target }}
+
+  # Builds the WebAssembly module and loads it in Node.
+  build-wasm:
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+      - name: Build
+        run: zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
+      - name: Smoke test
+        run: node test/wasm/smoke.mjs zig-out/bin/ghostty-render.wasm
+
   # The Rust binding, which still builds libghostty-vt from the
   # vendor/ghostty submodule.
   rust:
