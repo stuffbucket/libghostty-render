@@ -47,6 +47,35 @@ jobs:
               - '**/*.zig'
               - 'build.zig*'
 
+  # The only check that branch protection needs to require. It fails if
+  # any job it needs failed or was cancelled. Skipped jobs pass.
+  required:
+    name: "Required Checks: Test"
+    if: always()
+    runs-on: ubuntu-latest
+    needs:
+      - skip
+      - test
+      - build-cross
+      - build-wasm
+      - rust
+      - zig-fmt
+      - prettier
+      - alejandra
+      - typos
+      - shellcheck
+      - pinact
+    steps:
+      - name: Check results
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if grep -q -E '"(failure|cancelled)"' <<< "$RESULTS"; then
+            echo "One or more required jobs failed."
+            exit 1
+          fi
+
   # Unit tests, the version checks and the C link tests, natively on each
   # operating system.
   test:
