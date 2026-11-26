@@ -8,7 +8,10 @@ const std = @import("std");
 
 pub const c = @import("c/main.zig");
 
-comptime {}
+comptime {
+    @export(&c.build_info, .{ .name = "gtr_build_info" });
+    @export(&c.version, .{ .name = "gtr_version" });
+}
 
 test {
     std.testing.refAllDecls(@This());

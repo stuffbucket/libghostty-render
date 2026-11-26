@@ -56,13 +56,29 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     }) orelse return;
-    _ = try vtVersion(ghostty);
+    const vt_version = try vtVersion(ghostty);
+
+    // Build options visible to the library as @import("build_options").
+    const options = b.addOptions();
+    {
+        var buf: [256]u8 = undefined;
+        const full = try std.fmt.bufPrint(&buf, "{f}", .{lib_version});
+        options.addOption([]const u8, "version_string", b.dupe(full));
+        options.addOption(usize, "version_major", lib_version.major);
+        options.addOption(usize, "version_minor", lib_version.minor);
+        options.addOption(usize, "version_patch", lib_version.patch);
+        options.addOption(?[]const u8, "version_pre", lib_version.pre);
+        options.addOption(?[]const u8, "version_build", lib_version.build);
+        options.addOption(usize, "vt_version_major", vt_version.major);
+        options.addOption(usize, "vt_version_minor", vt_version.minor);
+        options.addOption(usize, "vt_version_patch", vt_version.patch);
+    }
 
     const vt_shared = ghostty.artifact("ghostty-vt");
     const vt_static = ghostty.artifact("ghostty-vt-static");
 
-    const shared = addLibrary(b, .dynamic, target, optimize, lib_version, vt_shared);
-    const static = addLibrary(b, .static, target, optimize, lib_version, vt_static);
+    const shared = addLibrary(b, .dynamic, target, optimize, options, lib_version, vt_shared);
+    const static = addLibrary(b, .static, target, optimize, options, lib_version, vt_static);
 
     // The render library is unusable without libghostty-vt, so install
     // libghostty-vt's libraries and headers next to ours.
@@ -76,7 +92,7 @@ pub fn build(b: *std.Build) !void {
 
     // Unit tests of the library code.
     {
-        const mod = createLibModule(b, target, optimize);
+        const mod = createLibModule(b, target, optimize, options);
         const t = b.addTest(.{
             .name = "ghostty-render-test",
             .root_module = mod,
@@ -90,12 +106,14 @@ fn createLibModule(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
     optimize: std.lang.OptimizeMode,
+    options: *std.Build.Step.Options,
 ) *std.Build.Module {
     const mod = b.createModule(.{
         .root_source_file = b.path("src/lib_render.zig"),
         .target = target,
         .optimize = optimize,
     });
+    mod.addOptions("build_options", options);
     return mod;
 }
 
@@ -104,10 +122,11 @@ fn addLibrary(
     linkage: std.lang.LinkMode,
     target: std.Build.ResolvedTarget,
     optimize: std.lang.OptimizeMode,
+    options: *std.Build.Step.Options,
     version: std.SemanticVersion,
     vt: *std.Build.Step.Compile,
 ) *std.Build.Step.Compile {
-    const mod = createLibModule(b, target, optimize);
+    const mod = createLibModule(b, target, optimize, options);
     const lib = b.addLibrary(.{
         .name = if (linkage == .static) "ghostty-render-static" else "ghostty-render",
         .linkage = linkage,

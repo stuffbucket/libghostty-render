@@ -23,6 +23,8 @@
 #ifndef GTR_RENDER_H
 #define GTR_RENDER_H
 
+#include <gtr/render/version.h>
 #include <gtr/render/types.h>
+#include <gtr/render/build_info.h>
 
 #endif /* GTR_RENDER_H */
