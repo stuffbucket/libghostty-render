@@ -1,4 +1,4 @@
-// Derived from herdr-app crates/ghostty-sys/build.rs (https://github.com/herdrdev/herdr-app, commit a2e8e3f, Apache-2.0). Modified by the libghostty-render authors: GHOSTTY_SOURCE_DIR override, Zig 0.17 requirement for vt-1.0.1, -DGHOSTTY_STATIC, C23 enums for bindgen, Windows system libraries, macros bindgen cannot evaluate are blocklisted (hand-defined in src/lib.rs).
+// Derived from herdr-app crates/ghostty-sys/build.rs (https://github.com/herdrdev/herdr-app, commit a2e8e3f, Apache-2.0). Modified by the libghostty-render authors: GHOSTTY_SOURCE_DIR override, Zig 0.17 requirement for vt-1.0.1, -DGHOSTTY_STATIC, C23 enums for bindgen, Windows system libraries, macros bindgen cannot evaluate are blocklisted (hand-defined in src/lib.rs), the release version is passed for the pinned submodule.
 
 //! Builds libghostty-vt (Ghostty tag vt-1.0.1) from source with Zig and
 //! generates bindings to `ghostty/vt.h` with bindgen.
@@ -22,6 +22,22 @@ fn zig_target(target: &str) -> &'static str {
         "aarch64-pc-windows-msvc" => "aarch64-windows-msvc",
         other => panic!("libghostty-render-sys: no Zig target for {other}"),
     }
+}
+
+/// The release in `include/ghostty/vt/version.h`, such as "1.0.1".
+fn header_version(src: &Path) -> String {
+    let header = std::fs::read_to_string(src.join("include/ghostty/vt/version.h"))
+        .expect("read ghostty/vt/version.h");
+    header
+        .lines()
+        .find_map(|line| {
+            let mut tokens = line.split_whitespace();
+            (tokens.next() == Some("#define") && tokens.next() == Some("GHOSTTY_VT_VERSION"))
+                .then(|| tokens.next())
+                .flatten()
+                .map(|v| v.trim_matches('"').to_owned())
+        })
+        .expect("GHOSTTY_VT_VERSION in ghostty/vt/version.h")
 }
 
 fn source_dir(manifest: &Path) -> PathBuf {
@@ -55,13 +71,21 @@ fn main() {
 
     let target = std::env::var("TARGET").unwrap();
     let zig = std::env::var("ZIG").unwrap_or_else(|_| "zig".into());
-    let status = Command::new(&zig)
+    let mut zig_build = Command::new(&zig);
+    zig_build.arg("build");
+    // Ghostty names an untagged checkout "1.0.1-dev+<hash>". The submodule
+    // is pinned to the vt-1.0.1 commit, but a shallow clone (as CI and the
+    // README's `--depth 1` make) has no tags, so pass the release version.
+    // Another source dir keeps Ghostty's own version.
+    if std::env::var_os("GHOSTTY_SOURCE_DIR").is_none() {
+        zig_build.arg(format!("-Dlib-version-string={}", header_version(&src)));
+    }
+    let status = zig_build
         .current_dir(&src)
         // Only the static library is linked. Ghostty can also build an
         // xcframework, which needs a full Xcode; it is off by default with
         // -Demit-lib-vt in vt-1.0.1 but stays off explicitly here.
         .args([
-            "build",
             "-Demit-lib-vt",
             "-Demit-xcframework=false",
             "-Doptimize=ReleaseFast",
