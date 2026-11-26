@@ -77,8 +77,50 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run all tests");
     addVersionTest(b, test_step, lib_version, test_filters);
 
+    // The public headers must compile without warnings in every language
+    // standard we support, so compile a file that includes render.h once
+    // per standard with strict warnings as errors. This runs on the host
+    // whatever the target, like libghostty-vt's own header check.
+    {
+        const wf = b.addWriteFiles();
+        const c_src = wf.add("render_h_test.c", "#include <gtr/render.h>\n");
+        const cpp_src = wf.add("render_h_test.cpp", "#include <gtr/render.h>\n");
+        const Case = struct { std: []const u8, src: std.Build.LazyPath };
+        for ([_]Case{
+            .{ .std = "c11", .src = c_src },
+            .{ .std = "c23", .src = c_src },
+            .{ .std = "c++17", .src = cpp_src },
+        }) |case| {
+            const mod = b.createModule(.{
+                .target = b.graph.host,
+                .optimize = .Debug,
+                .link_libc = true,
+                .link_libcpp = std.mem.startsWith(u8, case.std, "c++"),
+            });
+            mod.addIncludePath(b.path("include"));
+            mod.addIncludePath(ghostty.path("include"));
+            mod.addCSourceFile(.{ .file = case.src, .flags = &.{
+                b.fmt("-std={s}", .{case.std}),
+                "-Wall",
+                "-Wextra",
+                "-Wpedantic",
+                "-Werror",
+            } });
+            const obj = b.addObject(.{
+                .name = b.fmt("render-h-{s}", .{case.std}),
+                .root_module = mod,
+            });
+            test_step.dependOn(&obj.step);
+        }
+    }
+
+    const test_abi_step = b.step("test-abi", "Check the ABI against the goldens in src/c/abi");
+    const update_abi_step = b.step("update-abi", "Write the ABI goldens in src/c/abi for this target");
+    const abi_check = addAbiCheckTool(b, test_step);
+
     if (target.result.cpu.arch.isWasm()) {
-        addWasm(b, ghostty, target, optimize, options);
+        const wasm = addWasm(b, ghostty, target, optimize, options);
+        addAbiCheck(b, abi_check, wasm, target.result, test_abi_step, update_abi_step);
         return;
     }
 
@@ -87,6 +129,7 @@ pub fn build(b: *std.Build) !void {
 
     const shared = addLibrary(b, .dynamic, target, optimize, options, lib_version, vt_shared);
     const static = addLibrary(b, .static, target, optimize, options, lib_version, vt_static);
+    addAbiCheck(b, abi_check, shared.getEmittedBin(), target.result, test_abi_step, update_abi_step);
 
     // The render library is unusable without libghostty-vt, so install
     // libghostty-vt's libraries and headers next to ours.
@@ -100,6 +143,33 @@ pub fn build(b: *std.Build) !void {
         const mod = createLibModule(b, target, optimize, options);
         const t = b.addTest(.{
             .name = "ghostty-render-test",
+            .root_module = mod,
+            .filters = test_filters,
+        });
+        test_step.dependOn(&b.addRunArtifact(t).step);
+    }
+
+    // The C headers and the Zig types describe the same ABI. translate-c
+    // turns the headers into Zig, and src/c/abi_test.zig compares every
+    // type in the registry with its translation.
+    {
+        const headers = b.addTranslateC(.{
+            .root_source_file = b.path("include/gtr/render.h"),
+            .target = target,
+            .optimize = optimize,
+        });
+        headers.addIncludePath(b.path("include"));
+        headers.addIncludePath(ghostty.path("include"));
+
+        const mod = b.createModule(.{
+            .root_source_file = b.path("src/c/abi_test.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        mod.addOptions("build_options", options);
+        mod.addImport("gtr-render-h", headers.createModule());
+        const t = b.addTest(.{
+            .name = "ghostty-render-abi-test",
             .root_module = mod,
             .filters = test_filters,
         });
@@ -190,7 +260,7 @@ fn addWasm(
     target: std.Build.ResolvedTarget,
     optimize: std.lang.OptimizeMode,
     options: *std.Build.Step.Options,
-) void {
+) std.Build.LazyPath {
     const mod = b.createModule(.{
         .root_source_file = b.path("src/lib_render_wasm.zig"),
         .target = target,
@@ -240,6 +310,62 @@ fn addWasm(
         .bin,
         "ghostty-render.wasm",
     ).step);
+    return output;
+}
+
+/// Builds the ABI check tool, src/c/abi/check.zig, for the host, and adds
+/// its unit tests to the test step.
+fn addAbiCheckTool(b: *std.Build, test_step: *std.Build.Step) *std.Build.Step.Compile {
+    const mod = b.createModule(.{
+        .root_source_file = b.path("src/c/abi/check.zig"),
+        .target = b.graph.host,
+    });
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{
+        .name = "ghostty-render-abi-check-test",
+        .root_module = mod,
+    })).step);
+    return b.addExecutable(.{
+        .name = "abi_check",
+        .root_module = mod,
+    });
+}
+
+/// Compares the built library with the goldens for its target (test-abi),
+/// or writes them (update-abi). See src/c/abi/check.zig.
+fn addAbiCheck(
+    b: *std.Build,
+    tool: *std.Build.Step.Compile,
+    library: std.Build.LazyPath,
+    target: std.Target,
+    test_step: *std.Build.Step,
+    update_step: *std.Build.Step,
+) void {
+    // Goldens are named after the target, such as x86_64-linux-gnu. Targets
+    // with no ABI leave it out, such as aarch64-macos.
+    const arch_os = b.fmt("{t}-{t}", .{ target.cpu.arch, target.os.tag });
+    const golden = if (target.abi == .none)
+        b.fmt("src/c/abi/{s}.json", .{arch_os})
+    else
+        b.fmt("src/c/abi/{s}-{t}.json", .{ arch_os, target.abi });
+
+    inline for (.{
+        .{ "check", test_step },
+        .{ "update", update_step },
+    }) |mode| {
+        const run = b.addRunArtifact(tool);
+        run.addArg(mode[0]);
+        run.addFileArg(library);
+        run.addArg(golden);
+        run.addArg("src/c/abi/symbols.txt");
+        run.addArg("src/lib_render.zig");
+        run.addArg("include/gtr");
+        run.setCwd(b.path("."));
+
+        // The source tree paths above are plain arguments, so Zig can't
+        // tell when those files change. Always run, which takes no time.
+        run.has_side_effects = true;
+        mode[1].dependOn(&run.step);
+    }
 }
 
 fn createLibModule(

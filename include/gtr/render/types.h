@@ -1,7 +1,7 @@
 /**
  * @file types.h
  *
- * Common macros for libghostty-render.
+ * Common macros of libghostty-render, and its type manifest.
  *
  * libghostty-render has no common types of its own. It reuses the ones from
  * libghostty-vt, such as GhosttyResult, GhosttyString and the
@@ -64,6 +64,60 @@
 #else
   #define GTR_DEPRECATED(msg)
 #endif
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * Get a JSON description of every public type of the library.
+ *
+ * The manifest describes the C types as this build of the library lays
+ * them out for its target: the size and alignment of each type, the
+ * offset and type of each struct field, the values of each enum, the
+ * value type of each key of a `_get` or `_set` key enum, and the
+ * parameters of each callback. It covers libghostty-render's own types
+ * and the libghostty-vt types its API uses, such as GhosttyResult.
+ *
+ * The format is libghostty-vt's, described with ghostty_type_json() in
+ * <ghostty/vt/types.h>, with one more field: `library`, which is always
+ * "libghostty-render". Language bindings that can't use the C headers,
+ * such as WebAssembly hosts, should take offsets, sizes and enum values
+ * from the manifest rather than hardcoding them, reject unknown `schema`
+ * versions, and check the descriptors they need when they start.
+ *
+ * Example (abbreviated):
+ * @code{.json}
+ * {
+ *   "library": "libghostty-render",
+ *   "schema": 1,
+ *   "abi": {
+ *     "target": "wasm32", "os": "freestanding", "environment": "none",
+ *     "pointer_size": 4, "usize_size": 4, "endian": "little"
+ *   },
+ *   "library_version": "0.1.0", "commit": null,
+ *   "types": {
+ *     "GtrBuildInfo": {
+ *       "kind": "enum", "size": 4, "align": 4,
+ *       "underlying": "i32", "prefix": "GTR_BUILD_INFO_",
+ *       "values": { "INVALID": 0, "OPTIMIZE": 1, "MAX_VALUE": 2147483647 },
+ *       "keys": {
+ *         "OPTIMIZE": { "direction": "out", "type": "GhosttyOptimizeMode" }
+ *       }
+ *     }
+ *   }
+ * }
+ * @endcode
+ *
+ * @return Pointer to the null-terminated JSON string. It is never NULL,
+ *         is owned by the library, and stays valid for as long as the
+ *         library is loaded.
+ */
+GTR_API const char *gtr_type_json(void);
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* GTR_RENDER_TYPES_H */

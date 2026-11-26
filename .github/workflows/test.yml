@@ -58,6 +58,7 @@ jobs:
       - test
       - build-cross
       - build-wasm
+      - abi-check
       - rust
       - zig-fmt
       - prettier
@@ -108,6 +109,13 @@ jobs:
       - name: Build
         run: zig build ${{ env.TARGET }}
 
+      # Goldens exist for x86_64-linux-gnu and aarch64-macos. The check
+      # can't read Windows DLLs, and the abi-check job covers Linux with
+      # libabigail as well.
+      - name: Check ABI goldens
+        if: matrix.os != 'windows-latest'
+        run: zig build test-abi
+
   # Builds the libraries for every supported target from Linux.
   build-cross:
     needs: skip
@@ -146,6 +154,55 @@ jobs:
         run: zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
       - name: Smoke test
         run: node test/wasm/smoke.mjs zig-out/bin/ghostty-render.wasm
+      - name: Check ABI goldens
+        run: zig build test-abi -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
+
+  # Compares the ABI of the Linux shared library with the libabigail
+  # baseline in test/abi. See test/abi/README.md.
+  abi-check:
+    needs: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+
+      # The options a package would build with, so we check the library
+      # that packages ship.
+      - name: Build
+        run: nix develop -c zig build -Doptimize=ReleaseFast -Dcpu=baseline
+
+      # The dump fails if any API function is missing from it. The
+      # artifact is what a new baseline is taken from.
+      - name: Dump ABI
+        run: |
+          mkdir -p abi-dump
+          nix develop -c test/abi/check.sh dump \
+            zig-out/lib/libghostty-render.so \
+            abi-dump/baseline.abi
+          version="$(sed -nE 's/^[[:space:]]*\.version = "(.*)",/\1/p' build.zig.zon)"
+          {
+            echo "commit: ${GITHUB_SHA}"
+            echo "version: ${version}"
+          } > abi-dump/baseline.txt
+
+      - name: Upload ABI dump
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: libghostty-render-abi
+          path: |-
+            abi-dump/baseline.abi
+            abi-dump/baseline.txt
+
+      - name: Compare ABI with baseline
+        run: |
+          if [ ! -f test/abi/baseline.abi ]; then
+            echo "::notice title=ABI check::test/abi/baseline.abi doesn't exist yet, so the ABI isn't compared. The dump is in the libghostty-render-abi artifact."
+            exit 0
+          fi
+          nix develop -c test/abi/check.sh diff \
+            test/abi/baseline.abi \
+            zig-out/lib/libghostty-render.so
 
   # The Rust binding, which still builds libghostty-vt from the
   # vendor/ghostty submodule.

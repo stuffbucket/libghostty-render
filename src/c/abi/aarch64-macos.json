@@ -1,0 +1,134 @@
+{
+  "library": "libghostty-render",
+  "schema": 1,
+  "abi": {
+    "target": "aarch64",
+    "os": "macos",
+    "environment": "none",
+    "pointer_size": 8,
+    "usize_size": 8,
+    "endian": "little"
+  },
+  "types": {
+    "GhosttyOptimizeMode": {
+      "kind": "enum",
+      "size": 4,
+      "align": 4,
+      "underlying": "i32",
+      "prefix": "GHOSTTY_OPTIMIZE_",
+      "values": {
+        "DEBUG": 0,
+        "RELEASE_SAFE": 1,
+        "RELEASE_SMALL": 2,
+        "RELEASE_FAST": 3,
+        "MODE_MAX_VALUE": 2147483647
+      }
+    },
+    "GhosttyResult": {
+      "kind": "enum",
+      "size": 4,
+      "align": 4,
+      "underlying": "i32",
+      "prefix": "GHOSTTY_",
+      "values": {
+        "SUCCESS": 0,
+        "OUT_OF_MEMORY": -1,
+        "INVALID_VALUE": -2,
+        "OUT_OF_SPACE": -3,
+        "NO_VALUE": -4,
+        "IO_ERROR": -5,
+        "LIMIT_EXCEEDED": -6,
+        "REJECTED": -7,
+        "UNSUPPORTED": -8,
+        "RESULT_MAX_VALUE": 2147483647
+      }
+    },
+    "GhosttyString": {
+      "kind": "struct",
+      "size": 16,
+      "align": 8,
+      "fields": {
+        "ptr": {
+          "offset": 0,
+          "size": 8,
+          "type": "pointer",
+          "elem": "u8",
+          "const": true
+        },
+        "len": {
+          "offset": 8,
+          "size": 8,
+          "type": "u64"
+        }
+      }
+    },
+    "GtrBuildInfo": {
+      "kind": "enum",
+      "size": 4,
+      "align": 4,
+      "underlying": "i32",
+      "prefix": "GTR_BUILD_INFO_",
+      "values": {
+        "INVALID": 0,
+        "OPTIMIZE": 1,
+        "VERSION_STRING": 2,
+        "VERSION_MAJOR": 3,
+        "VERSION_MINOR": 4,
+        "VERSION_PATCH": 5,
+        "VERSION_PRE": 6,
+        "VERSION_BUILD": 7,
+        "VT_VERSION_STRING": 8,
+        "VT_VERSION_MAJOR": 9,
+        "VT_VERSION_MINOR": 10,
+        "VT_VERSION_PATCH": 11,
+        "MAX_VALUE": 2147483647
+      },
+      "keys": {
+        "OPTIMIZE": {
+          "direction": "out",
+          "type": "GhosttyOptimizeMode"
+        },
+        "VERSION_STRING": {
+          "direction": "out",
+          "type": "GhosttyString"
+        },
+        "VERSION_MAJOR": {
+          "direction": "out",
+          "type": "u64"
+        },
+        "VERSION_MINOR": {
+          "direction": "out",
+          "type": "u64"
+        },
+        "VERSION_PATCH": {
+          "direction": "out",
+          "type": "u64"
+        },
+        "VERSION_PRE": {
+          "direction": "out",
+          "type": "GhosttyString"
+        },
+        "VERSION_BUILD": {
+          "direction": "out",
+          "type": "GhosttyString"
+        },
+        "VT_VERSION_STRING": {
+          "direction": "out",
+          "type": "GhosttyString"
+        },
+        "VT_VERSION_MAJOR": {
+          "direction": "out",
+          "type": "u64"
+        },
+        "VT_VERSION_MINOR": {
+          "direction": "out",
+          "type": "u64"
+        },
+        "VT_VERSION_PATCH": {
+          "direction": "out",
+          "type": "u64"
+        }
+      }
+    }
+  }
+}
