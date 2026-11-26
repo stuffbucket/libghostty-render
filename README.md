@@ -22,6 +22,10 @@ with GPUI as one binding on top; see [`docs/DESIGN.md`](docs/DESIGN.md) and
   mise x zig@0.17.1 -- zig build        # installs libs and headers into zig-out/
   ```
 
+  For `wasm32-freestanding` the build emits one module,
+  `zig-out/bin/ghostty-render.wasm`, that contains libghostty-vt as well,
+  since a wasm module can't link another at run time.
+
 - **`libghostty-render-sys`**: builds libghostty-vt `vt-1.0.1` from source
   with Zig, links it statically, and exposes all of `ghostty/vt.h` to Rust
   through bindgen, plus hand-written equivalents of the macros and inline
@@ -78,8 +82,11 @@ dependencies (highway, wuffs, uucode, translate-c).
 
 ## Platforms
 
-macOS (arm64, x86_64), Linux glibc (x86_64, arm64) and Windows MSVC (x86_64,
-arm64). CI builds and tests on macOS, Ubuntu and Windows.
+The core library builds for macOS, Linux (glibc and musl) and FreeBSD on
+x86_64 and arm64, Windows (GNU ABI) on x86_64 and arm64, and
+wasm32-freestanding. CI tests it natively on macOS, Ubuntu and Windows and
+cross-builds the rest. The Rust crate supports macOS (arm64, x86_64), Linux
+glibc (x86_64, arm64) and Windows MSVC (x86_64, arm64).
 
 ## Ghostty pin
 
