@@ -1,0 +1,3 @@
+gtr_build_info
+gtr_type_json
+gtr_version
