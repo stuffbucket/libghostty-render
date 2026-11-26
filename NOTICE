@@ -1,0 +1,51 @@
+libghostty-render
+Copyright (c) 2026 libghostty-render contributors
+
+This repository contains two separately licensed parts:
+
+  - The core library (Zig, C ABI; everything outside bindings/ and crates/)
+    is licensed under the MIT License (LICENSE).
+  - The Rust bindings and GPUI component (bindings/rust/, and crates/ until
+    it moves there) are licensed under the Apache License, Version 2.0
+    (LICENSE-APACHE).
+
+This library exists because of the work of the teams below. The credits are
+both required notices and our thanks.
+
+------------------------------------------------------------------------------
+Ghostty and libghostty-vt
+https://github.com/ghostty-org/ghostty
+Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors
+Licensed under the MIT License (licenses/ghostty-LICENSE-MIT)
+
+All terminal emulation is Ghostty's: libghostty-vt (tag vt-1.0.1, commit
+108cacb17ed8990840cd14abfce43d8ed8503ca1) is built from source and linked.
+The core library's renderer logic (cell metrics, colour resolution, shaping
+runs, cursor and decoration rules, image ordering and sprite glyphs) is
+ported from Ghostty's renderer and font code at the same commit. See
+docs/PROVENANCE.md for the exact files.
+
+Libraries that Ghostty statically links into libghostty-vt carry their own
+notices in licenses/ (see licenses/README.md).
+
+------------------------------------------------------------------------------
+herdr (herdr-app)
+https://github.com/herdrdev/herdr-app
+Copyright the herdr contributors
+Licensed under the Apache License, Version 2.0 (licenses/herdr-app-LICENSE-APACHE)
+
+herdr-app showed how to render libghostty-vt terminals with a UI toolkit's
+own text and quad primitives, and how to build and bind libghostty-vt from
+Rust. The Rust bindings and the GPUI component in this repository are derived
+from herdr-app at commit a2e8e3ffa84439d4a245a1e6aa8947ef0dd20a1b. Each derived
+file states that it was modified; docs/PROVENANCE.md lists the files and the
+changes.
+
+------------------------------------------------------------------------------
+GPUI
+https://github.com/zed-industries/zed (crates/gpui), distributed on crates.io
+as gpui-pre
+Copyright 2022 - 2025 Zed Industries, Inc.
+Licensed under the Apache License, Version 2.0 (licenses/gpui-LICENSE-APACHE)
+
+The Rust GPUI component links GPUI.

@@ -1,0 +1,13 @@
+[workspace]
+members = ["crates/libghostty-render-sys"]
+resolver = "3"
+
+[workspace.package]
+# Not ready for crates.io. Crates opt in with `publish.workspace = true`, and
+# this stays false until the owner decides to publish.
+publish = false
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/stuffbucket/libghostty-render"

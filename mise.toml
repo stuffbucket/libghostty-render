@@ -1,0 +1,4 @@
+[tools]
+rust = "1.99.0"
+# libghostty-vt vt-1.0.1 requires Zig >= 0.17.0 (build.zig.zon minimum_zig_version).
+zig = "0.17.1"

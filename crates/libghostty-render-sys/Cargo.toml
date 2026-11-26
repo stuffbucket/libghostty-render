@@ -1,0 +1,28 @@
+[package]
+name = "libghostty-render-sys"
+description = "Raw bindings to libghostty-vt (Ghostty tag vt-1.0.1), built from source with Zig and linked statically"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+readme = "README.md"
+keywords = ["ghostty", "terminal", "vt", "ffi"]
+categories = ["external-ffi-bindings"]
+links = "ghostty-vt"
+build = "build.rs"
+# LICENSE, NOTICE and licenses/ are symlinks to the workspace root copies, so
+# the packaged crate carries the same notices as the repository.
+include = [
+    "build.rs",
+    "src/**",
+    "tests/**",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "licenses/**",
+]
+
+[build-dependencies]
+bindgen = "0.72"
